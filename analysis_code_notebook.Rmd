@@ -1,0 +1,530 @@
+---
+title: "Defense Gene Analysis in Acinetobacter spp."
+output: html_notebook
+---
+
+# Introduction
+
+## This analysis focuses on identifying and exploring the distribution of defense genes, such as CRISPR-Cas, R-M, and TA systems, across different strains of *Acinetobacter spp.*. The analysis includes visualizing the presence and absence of these genes and investigating their relationship with stress response under different environmental conditions.
+
+#Analysis Goals
+
+## -Identify defense genes (CRISPR-Cas, R-M, TA systems) in *Acinetobacter spp.* -Visualize the distribution of defense genes across samples using heatmaps -Explore the relationship between defense genes and stress response under different environmental conditions
+
+# Load the Dataset
+
+```{r load-data, message=FALSE, warning=FALSE}
+# Load the dataset from the specified path
+dataset_path <- "/home/issah/Datasets/GSE120392_RAW/GPL25603_079503_D_GEO_20151106.txt"
+
+# Read the raw dataset lines
+data_raw <- readLines(dataset_path)
+
+# Find where the data table starts
+table_start <- grep("!Platform_table_begin", data_raw)
+
+# Extract the actual data table from the raw dataset
+data_table <- data_raw[(table_start + 1):length(data_raw)]
+
+# Write the extracted table into a temporary file for parsing
+temp_file <- tempfile()
+writeLines(data_table, temp_file)
+
+# Load the data as a dataframe, ensuring to keep it clean
+data_clean <- read.table(temp_file, header = TRUE, sep = "\t", fill = TRUE, stringsAsFactors = FALSE)
+
+# Check the structure of the dataset to list all available columns
+cat("Checking dataset structure to display available columns...\n")
+str(data_clean)
+
+# Display the first few rows of the dataset to verify loading is correct
+cat("Displaying the first few rows of the dataset...\n")
+head(data_clean)
+
+# If you want to focus on specific columns, here is how you can proceed:
+
+# Specify the columns that are of interest based on your sample
+required_columns <- c("ID", "COL", "ROW", "NAME", "DESCRIPTION")
+
+# Check if the required columns are present in the dataset
+if (!all(required_columns %in% colnames(data_clean))) {
+  stop("Required columns are missing from the dataset.")
+} else {
+  cat("All required columns are available.\n")
+}
+
+# Subset the dataset to focus on defense genes (e.g., CRISPR-Cas, R-M, TA systems)
+# Assuming defense genes are in the 'DESCRIPTION' column
+defense_genes <- data_clean[grepl("CRISPR|R-M|TA", data_clean$DESCRIPTION, ignore.case = TRUE), ]
+
+# Display the identified defense genes (if any exist)
+if (nrow(defense_genes) > 0) {
+  cat("Displaying identified defense genes...\n")
+  head(defense_genes)
+} else {
+  message("No defense genes found in the dataset.")
+}
+
+
+
+
+```
+
+#Identify defence genes in the dataset
+
+```{r}
+# Subset the dataset to focus on defense genes (e.g., CRISPR-Cas, R-M, TA systems)
+# We are using the 'DESCRIPTION' column for filtering
+defense_genes <- data_clean[grepl("CRISPR|R-M|TA", data_clean$DESCRIPTION, ignore.case = TRUE), ]
+
+# Check if any defense genes were identified
+if (nrow(defense_genes) > 0) {
+  message("Defense genes identified in the dataset.")
+  
+  # Display the first few rows of the identified defense genes
+  head(defense_genes)
+} else {
+  message("No defense genes found in the dataset.")
+}
+
+# Display the structure of the identified defense genes dataset
+str(defense_genes)
+
+
+```
+
+#Identify defence Genes
+
+```{r}
+# Plot the distribution of defense genes based on the 'DESCRIPTION' column (with adjustments)
+library(ggplot2)
+
+# Calculate the top 20 most frequent descriptions for clearer visualization
+top_descriptions <- defense_genes %>%
+  count(DESCRIPTION, sort = TRUE) %>%
+  top_n(20)
+
+ggplot(top_descriptions, aes(x = reorder(DESCRIPTION, n), y = n)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10), 
+        plot.title = element_text(size = 14, face = "bold"),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12)) +
+  labs(title = "Top 20 Defense Genes by Description", x = "Defense Gene Description", y = "Frequency") +
+  coord_flip()  # Flip coordinates for easier reading of long labels
+
+# Distribution of defense genes by Column (COL)
+ggplot(defense_genes, aes(x = COL)) +
+  geom_histogram(binwidth = 10, fill = "darkgreen", color = "black") +
+  theme(plot.title = element_text(size = 14, face = "bold"),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12)) +
+  labs(title = "Distribution of Defense Genes by Column Number", x = "Column", y = "Frequency")
+
+
+
+```
+
+Gene Prevalence Across Samples: We can calculate the frequency of each defense gene across the samples to see which genes are most prevalent:
+
+Heatmap of Defense Genes by Column (COL) and Row (ROW)
+
+```{r}
+# Prepare the data for the heatmap by aggregating counts of defense genes by COL and ROW
+heatmap_data <- as.data.frame(table(defense_genes$COL, defense_genes$ROW))
+colnames(heatmap_data) <- c("COL", "ROW", "Frequency")
+
+# Convert COL and ROW to factors for better axis labeling
+heatmap_data$COL <- as.factor(heatmap_data$COL)
+heatmap_data$ROW <- as.factor(heatmap_data$ROW)
+
+# Plot the heatmap with improved axis text visibility
+ggplot(heatmap_data, aes(x = COL, y = ROW, fill = Frequency)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "red", high = "blue") +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),  # Increase x-axis text size
+    axis.text.y = element_text(size = 8)  # Increase y-axis text size
+  ) +
+  labs(title = "Heatmap of Defense Genes by Column and Row", 
+       x = "Column", y = "Row") +
+  scale_x_discrete(breaks = levels(heatmap_data$COL)[seq(1, length(levels(heatmap_data$COL)), by = 5)]) +  # Show every 5th label
+  scale_y_discrete(breaks = levels(heatmap_data$ROW)[seq(1, length(levels(heatmap_data$ROW)), by = 5)])    # Show every 5th label
+
+```
+
+Heatmap of Defense Genes by Column (COL) and GO_ID
+
+```{r}
+# Prepare data for GO_ID-based heatmap
+goid_heatmap_data <- as.data.frame(table(defense_genes$COL, defense_genes$GO_ID))
+colnames(goid_heatmap_data) <- c("COL", "GO_ID", "Frequency")
+
+# Convert COL and GO_ID to factors for better axis labeling
+goid_heatmap_data$COL <- as.factor(goid_heatmap_data$COL)
+goid_heatmap_data$GO_ID <- as.factor(goid_heatmap_data$GO_ID)
+
+# Plot the heatmap for GO_ID with improved axis text visibility
+ggplot(goid_heatmap_data, aes(x = COL, y = GO_ID, fill = Frequency)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "white", high = "green") +
+  labs(title = "Heatmap of Defense Genes by Column and GO_ID", x = "Column", y = "GO_ID") +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),  # Increase x-axis text size
+    axis.text.y = element_text(size = 8)  # Increase y-axis text size
+  ) +
+  scale_x_discrete(breaks = levels(goid_heatmap_data$COL)[seq(1, length(levels(goid_heatmap_data$COL)), by = 5)]) +  # Show every 5th label on x-axis
+  scale_y_discrete(breaks = levels(goid_heatmap_data$GO_ID)[seq(1, length(levels(goid_heatmap_data$GO_ID)), by = 5)])  # Show every 5th label on y-axis
+
+
+
+
+```
+
+Top 10 Most Frequent Sequences
+
+```{r}
+# Investigating the sequence data
+unique_sequences <- unique(defense_genes$SEQUENCE)
+sequence_counts <- table(defense_genes$SEQUENCE)
+
+# Plot the top 10 most frequent sequences
+top_sequences <- as.data.frame(sequence_counts[order(-sequence_counts)][1:10])
+colnames(top_sequences) <- c("SEQUENCE", "Frequency")
+
+ggplot(top_sequences, aes(x = reorder(SEQUENCE, -Frequency), y = Frequency)) +
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Top 10 Most Frequent Sequences", x = "Sequence", y = "Frequency")
+
+```
+
+Top Defense Genes by Frequency in the Dataset
+
+```{r}
+# Create a bar plot of the most frequent defense genes by 'DESCRIPTION'
+gene_frequency <- as.data.frame(table(defense_genes$DESCRIPTION))
+colnames(gene_frequency) <- c("Gene", "Frequency")
+
+# Filter to show the top 10 most frequent defense genes
+top_genes <- gene_frequency[order(-gene_frequency$Frequency), ][1:10, ]
+
+# Plot the bar chart
+ggplot(top_genes, aes(x = reorder(Gene, -Frequency), y = Frequency)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Top 10 Most Frequent Defense Genes in the Dataset", 
+       x = "Gene", y = "Frequency")
+
+```
+
+Distribution of Defense Genes by GO_ID
+
+```{r}
+# Prepare data for the pie chart by summarizing the distribution by GO_ID
+go_distribution <- as.data.frame(table(defense_genes$GO_ID))
+colnames(go_distribution) <- c("GO_ID", "Count")
+
+# Filter to exclude empty or missing GO_IDs
+go_distribution_filtered <- go_distribution[go_distribution$GO_ID != "-", ]
+
+# Plot a pie chart showing the distribution of defense genes by GO_ID
+ggplot(go_distribution_filtered, aes(x = "", y = Count, fill = GO_ID)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y") +
+  theme_void() +
+  labs(title = "Distribution of Defense Genes by GO_ID") +
+  scale_fill_brewer(palette = "Set3")
+
+```
+
+Sequence Length Distribution of Defense Genes
+
+```{r}
+# Compute the length of each gene sequence
+defense_genes$Sequence_Length <- nchar(defense_genes$SEQUENCE)
+
+# Plot a histogram of the sequence lengths
+ggplot(defense_genes, aes(x = Sequence_Length)) +
+  geom_histogram(binwidth = 50, fill = "purple", color = "black") +
+  labs(title = "Distribution of Defense Gene Sequence Lengths", 
+       x = "Sequence Length", y = "Frequency")
+
+```
+
+Exploring Gene-Stress Relationships In order to explore the relationship between defense genes and stress responses, we will first check if the dataset contains any relevant columns or markers that might indicate stress conditions (e.g., stress-related genes or pathways). If not, we may simulate or use hypothetical stress data for the sake of the analysis.
+
+```{r}
+# Check for columns related to stress response (assuming we have stress markers in the dataset)
+stress_related_genes <- defense_genes[grepl("stress|response", defense_genes$DESCRIPTION, ignore.case = TRUE), ]
+
+# Display the first few rows to see if stress-related genes are present
+head(stress_related_genes)
+
+# If stress-related genes exist, we can perform additional analysis or visualization
+if (nrow(stress_related_genes) > 0) {
+  barplot(table(stress_related_genes$NAME),
+          main = "Bar Plot of Stress-Related Defense Genes",
+          xlab = "Gene Name",
+          ylab = "Frequency",
+          col = "steelblue")
+} else {
+  message("No stress-related defense genes found.")
+}
+
+```
+
+Phylogenetic Tree of Defense Genes To build phylogenetic trees showing the evolutionary relationship of defense genes, I will focus on using the sequences available in the dataset (if provided). We'll need to align these sequences and use them to generate the tree.
+
+```{r}
+# Define the number of sequences to subset
+subset_size <- 50
+seq_list_subset <- seq_list[1:subset_size]
+
+# Initialize the distance matrix for the subset
+dist_matrix_subset <- matrix(NA, subset_size, subset_size)
+
+# Compute the distance matrix, handling any NA/NaN/Inf values
+for (i in 1:subset_size) {
+  for (j in i:subset_size) {
+    distance <- compute_distance(seq_list_subset[[i]], seq_list_subset[[j]])
+    
+    # Check for valid numeric values, otherwise set to 0
+    if (!is.na(distance) && !is.nan(distance) && !is.infinite(distance)) {
+      dist_matrix_subset[i, j] <- distance
+      dist_matrix_subset[j, i] <- distance
+    } else {
+      dist_matrix_subset[i, j] <- 0
+      dist_matrix_subset[j, i] <- 0
+      warning(paste("Invalid distance between sequence", i, "and sequence", j))
+    }
+  }
+}
+
+# Convert the cleaned distance matrix to 'dist' object
+dist_matrix_subset <- as.dist(dist_matrix_subset)
+
+# Perform hierarchical clustering on the subset
+phylo_tree_subset <- hclust(dist_matrix_subset)
+
+# Set plot parameters for better readability
+par(cex = 0.8, las = 2, mar = c(5, 4, 4, 10), xpd = NA)
+
+# Plot the dendrogram for the subset
+plot(phylo_tree_subset, main = "Phylogenetic Tree of Defense Genes (Subset)", 
+     sub = "Based on sequence similarity (First 50 Sequences)", 
+     xlab = "", 
+     ylab = "Distance", 
+     hang = -1, 
+     col = "blue")
+
+# Reset plot parameters to default
+par(cex = 1, las = 0, mar = c(5, 4, 4, 2), xpd = FALSE)
+
+'
+```
+
+PADLOC Analysis
+
+```{r}
+# Simulate the Padloc output data
+padloc_output <- data.frame(
+  Genome = c("Acinetobacter_1", "Acinetobacter_2", "Acinetobacter_3", "Acinetobacter_4", "Acinetobacter_5"),
+  System_Type = c("CRISPR-Cas", "R-M", "TA", "R-M", "CRISPR-Cas"),
+  Gene = c("cas1", "hpaII", "relE", "mcrA", "cas2"),
+  Start_Position = c(5000, 12000, 4000, 15000, 7000),
+  End_Position = c(6000, 13000, 4500, 16000, 7500),
+  Strand = c("+", "-", "+", "-", "+"),
+  stringsAsFactors = FALSE
+)
+
+# Write the simulated data to a CSV file
+write.csv(padloc_output, "/home/issah/Datasets/simulated_padloc_output.csv", row.names = FALSE)
+
+# Now read the CSV back into R as though it was the actual Padloc output
+padloc_output <- read.csv("/home/issah/Datasets/simulated_padloc_output.csv", header = TRUE)
+
+# Check the structure of the loaded data
+str(padloc_output)
+
+# Display the first few rows to ensure it's loaded correctly
+head(padloc_output)
+
+# Subset the data to focus on relevant defense systems (e.g., CRISPR-Cas, R-M, TA systems)
+defense_systems <- padloc_output[grepl("CRISPR|R-M|TA", padloc_output$System_Type, ignore.case = TRUE), ]
+
+# View the filtered defense systems
+head(defense_systems)
+
+# Summary of defense gene systems
+summary(defense_systems$System_Type)
+
+# Plot a bar chart of defense gene system occurrences
+library(ggplot2)
+ggplot(defense_systems, aes(x = System_Type)) +
+  geom_bar(fill = "steelblue") +
+  theme_minimal() +
+  labs(title = "Distribution of Defense Gene Systems", x = "System Type", y = "Count")
+
+```
+
+Gene Distribution Across Genomes You can analyze how defense systems like CRISPR-Cas, Restriction-Modification (R-M), and Toxin-Antitoxin (TA) are distributed across different bacterial genomes.
+
+```{r}
+# Count occurrences of each defense system in different genomes
+library(dplyr)
+defense_distribution <- padloc_output %>%
+  group_by(Genome, System_Type) %>%
+  summarise(Count = n())
+
+# Visualize defense system distribution across genomes
+ggplot(defense_distribution, aes(x = Genome, y = Count, fill = System_Type)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  labs(title = "Distribution of Defense Systems Across Genomes",
+       x = "Genome",
+       y = "Defense System Count",
+       fill = "System Type") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+Defense System Coverage You can calculate and visualize the coverage of each defense system (length of defense genes) across the genome.
+
+```{r}
+# Compute gene length and plot defense system coverage
+padloc_output$Gene_Length <- padloc_output$End_Position - padloc_output$Start_Position
+
+ggplot(padloc_output, aes(x = System_Type, y = Gene_Length)) +
+  geom_boxplot(fill = "lightgreen") +
+  theme_minimal() +
+  labs(title = "Gene Length Distribution by Defense System",
+       x = "Defense System",
+       y = "Gene Length (bp)")
+
+```
+
+Genome Heatmap of Defense Systems You can create a heatmap to visualize the presence or absence of each defense system across multiple genomes.
+
+```{r}
+# Load required libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Create a binary matrix of genomes vs. defense systems using pivot_wider
+heatmap_data <- padloc_output %>%
+  group_by(Genome, System_Type) %>%
+  summarise(Present = 1) %>%
+  pivot_wider(names_from = System_Type, values_from = Present, values_fill = 0)
+
+# Convert to matrix format for heatmap plotting
+heatmap_matrix <- as.matrix(heatmap_data[, -1])
+rownames(heatmap_matrix) <- heatmap_data$Genome
+
+# Plot heatmap
+heatmap(heatmap_matrix, Rowv = NA, Colv = NA, col = heat.colors(256), scale = "none",
+        margins = c(5, 10), xlab = "Defense System", ylab = "Genome")
+
+```
+
+Statistical Analysis of Defense Systems You can use statistical methods to determine whether there is any significant correlation between different defense systems in terms of their presence in various genomes.
+
+```{r}
+# Perform Chi-squared test to explore correlation between defense systems
+defense_system_table <- table(padloc_output$Genome, padloc_output$System_Type)
+chi_test_result <- chisq.test(defense_system_table)
+print(chi_test_result)
+
+```
+
+Genomic Location Visualization You can create a plot showing the genomic location of each defense gene within each genome, helping to understand the arrangement of defense systems.
+
+```{r}
+# Plot genomic location of defense systems
+ggplot(padloc_output, aes(x = Start_Position, xend = End_Position, y = Genome)) +
+  geom_segment(aes(yend = Genome, color = System_Type), size = 2) +
+  theme_minimal() +
+  labs(title = "Genomic Location of Defense Systems",
+       x = "Genomic Position",
+       y = "Genome",
+       color = "System Type")
+
+```
+
+Explore Co-occurrence of Defense Systems You can analyze how often different defense systems co-occur within the same genome.
+
+```{r}
+# Count co-occurrences of defense systems within genomes
+co_occurrence <- padloc_output %>%
+  group_by(Genome) %>%
+  summarise(Systems_Present = paste(unique(System_Type), collapse = ", "))
+
+# View co-occurrence data
+print(co_occurrence)
+
+```
+
+Gene Frequency Distribution: Objective: Determine how frequently each type of defense gene (e.g., CRISPR, R-M, TA systems) appears across all genomes. Method: Count the occurrence of each system type (e.g., CRISPR-Cas, R-M, TA) and plot their frequencies using a bar graph.
+
+```{r}
+# Count the frequency of each defense gene system
+system_count <- table(padloc_output$System_Type)
+
+# Plot the frequency of defense systems
+barplot(system_count, main = "Frequency of Defense Systems in Acinetobacter spp.",
+        xlab = "Defense System", ylab = "Frequency", col = "lightblue", las = 2)
+
+```
+
+Gene Presence Across Strains: Objective: Analyze how many strains contain each defense gene, which can highlight particularly widespread or rare defense systems. Method: Summarize the presence of defense genes across strains and visualize the percentage of genomes that contain each system.
+
+```{r}
+# Calculate the proportion of strains that have each system
+system_presence <- colSums(heatmap_matrix) / nrow(heatmap_matrix)
+
+# Plot the presence of each system across strains
+barplot(system_presence * 100, main = "Presence of Defense Systems Across Strains",
+        xlab = "Defense System", ylab = "Percentage of Strains", col = "lightgreen", las = 2)
+
+```
+
+PCA (Principal Component Analysis) of Defense Gene Profiles: Objective: Use PCA to reduce the dimensionality of the defense gene data and see if there are natural groupings of strains based on their defense gene profiles. Method: Perform PCA and plot the first two principal components.
+
+```{r}
+# Perform PCA on defense gene profiles
+pca_result <- prcomp(heatmap_matrix, scale. = TRUE)
+
+# Plot the first two principal components
+plot(pca_result$x[, 1], pca_result$x[, 2], col = "blue", pch = 19,
+     xlab = "PC1", ylab = "PC2", main = "PCA of Defense Gene Profiles")
+
+```
+
+Cluster Analysis of Defense Gene Systems: Objective: Group genomes into clusters based on their defense gene profiles to see if there are distinct groups of strains. Method: Perform hierarchical clustering and visualize the clusters.
+
+```{r}
+# Perform hierarchical clustering
+hc <- hclust(dist(heatmap_matrix))
+
+# Plot the dendrogram
+plot(hc, main = "Hierarchical Clustering of Defense Gene Profiles", xlab = "", ylab = "Distance")
+
+```
+
+### **Bar Plot of Most Frequent Genes (GENE_SYMBOL)**
+
+This can help you identify which defense genes appear most frequently in your dataset.
+
+```         
+```
+
+```{r}
+# Bar plot of the most frequent genes
+ggplot(defense_genes, aes(x = GENE_SYMBOL)) +
+  geom_bar(fill = "skyblue") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "Most Frequent Defense Genes", x = "Gene Symbol", y = "Frequency")
+
+
+```
