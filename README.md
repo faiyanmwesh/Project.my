@@ -1,0 +1,1 @@
+This analysis focuses on identifying and exploring the distribution of defense genes, such as CRISPR-Cas, R-M, and TA systems, across different strains of *Acinetobacter spp.*. The analysis includes visualizing the presence and absence of these genes and investigating their relationship with stress response under different environmental conditions.
